@@ -1,0 +1,11 @@
+{
+  "hosts": {
+    "development": {
+      "sshAlias": "YOUR_SSH_ALIAS",
+      "roots": ["/ABSOLUTE/PATH/TO/EDITABLE/WORKSPACE"],
+      "codexPath": "/ABSOLUTE/PATH/TO/codex",
+      "pythonCommand": "python3",
+      "timeoutMs": 45000
+    }
+  }
+}

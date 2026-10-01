@@ -1,0 +1,19 @@
+{
+  "name": "codex-remote-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small OpenSSH-backed MCP for inspected, staged and audited remote patches",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "bin": { "codex-remote-workbench": "src/server.js" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "test:worker": "python -m unittest discover -s test -p test_worker.py -v"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.6.5"
+  }
+}

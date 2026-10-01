@@ -1,0 +1,17 @@
+node_modules/
+__pycache__/
+*.pyc
+*.local.json
+.env
+.env.*
+!.env.example
+logs/
+artifacts/
+.remote-workbench/
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+known_hosts*
+ssh_config*
+.DS_Store
