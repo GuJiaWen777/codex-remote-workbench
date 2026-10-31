@@ -19,7 +19,7 @@ test('MCP initialization, tools/list and schema error without contacting any rea
   try {
     await client.connect(transport);
     const result = await client.listTools();
-    assert.deepEqual(result.tools.map(tool => tool.name).sort(), ['remote_apply_patch', 'remote_doctor', 'remote_inspect']);
+    assert.deepEqual(result.tools.map(tool => tool.name).sort(), ['remote_apply_patch', 'remote_doctor', 'remote_inspect', 'remote_list', 'remote_search']);
     assert.equal(result.tools.find(tool => tool.name === 'remote_apply_patch').annotations.destructiveHint, true);
     const invalid = await client.callTool({ name: 'remote_doctor', arguments: { host: 'unconfigured', workdir: '/' } });
     assert.equal(invalid.isError, true);

@@ -126,6 +126,87 @@ def inspect(request, workdir):
     return {"ok": True, "files": result}
 
 
+def browse_dir(workdir, name):
+    if name == ".":
+        return workdir
+    clean_relative(name)
+    require(all(visible(part) for part in name.split('/')), "Hidden or excluded directory")
+    path = workdir / name
+    reject_symlinks(path)
+    require(path.is_dir(), "Directory must exist")
+    return path
+
+
+def visible(name):
+    lower = name.lower()
+    return (not name.startswith(".") and lower not in {"node_modules", "__pycache__", "venv", "secrets", "credentials"}
+            and not lower.endswith((".pem", ".key", ".p12", ".pfx")))
+
+
+def list_dir(request, workdir):
+    directory = browse_dir(workdir, request.get("path", "."))
+    limit = request.get("limit", 200)
+    require(isinstance(limit, int) and not isinstance(limit, bool) and 1 <= limit <= 500, "Invalid limit")
+    entries = []
+    truncated = False
+    with os.scandir(directory) as scan:
+        for item in scan:
+            if not visible(item.name) or item.is_symlink():
+                continue
+            if not (item.is_dir(follow_symlinks=False) or item.is_file(follow_symlinks=False)):
+                continue
+            if len(entries) == limit:
+                truncated = True
+                break
+            entries.append({"name": item.name, "type": "directory" if item.is_dir(follow_symlinks=False) else "file"})
+    return {"ok": True, "entries": entries, "truncated": truncated}
+
+
+def search(request, workdir):
+    start = browse_dir(workdir, request.get("path", "."))
+    query = request.get("query")
+    limit = request.get("limit", 50)
+    require(isinstance(query, str) and 0 < len(query) <= 256 and "\n" not in query and "\r" not in query, "Invalid search query")
+    require(isinstance(limit, int) and not isinstance(limit, bool) and 1 <= limit <= 200, "Invalid limit")
+    matches, stack, scanned, total_bytes, skipped = [], [start], 0, 0, 0
+    truncated = False
+    while stack and not truncated:
+        directory = stack.pop()
+        reject_symlinks(directory)
+        with os.scandir(directory) as entries:
+            for item in entries:
+                scanned += 1
+                if scanned > 10000:
+                    truncated = True
+                    break
+                if not visible(item.name) or item.is_symlink():
+                    continue
+                if item.is_dir(follow_symlinks=False):
+                    stack.append(Path(item.path))
+                    continue
+                if not item.is_file(follow_symlinks=False):
+                    continue
+                try:
+                    path = safe_target(workdir, Path(item.path).relative_to(workdir).as_posix())
+                    size = path.stat().st_size
+                    if total_bytes + size > 16 * 1024 * 1024:
+                        truncated = True
+                        break
+                    data = contents(path)
+                    total_bytes += size
+                    for number, line in enumerate(data.decode('utf-8').splitlines(), 1):
+                        if query in line:
+                            matches.append({"path": path.relative_to(workdir).as_posix(), "line": number, "text": line[:1000], "lineTruncated": len(line) > 1000})
+                            if len(matches) >= limit:
+                                truncated = True
+                                break
+                except (OSError, UnicodeError, GuardError):
+                    skipped += 1
+                if truncated:
+                    break
+    return {"ok": True, "matches": matches, "truncated": truncated, "skippedFiles": skipped, "scannedEntries": min(scanned, 10000), "scannedBytes": total_bytes}
+
+
 @contextlib.contextmanager
 def root_lock(root):
     # Remote POSIX hosts only; Windows is intentionally not supported by this worker.
@@ -278,6 +359,10 @@ def handle(request):
                 "note": "Executable presence does not prove patch-entry compatibility; run a preview smoke test."}
     if op == "inspect":
         return inspect(request, workdir)
+    if op == "list":
+        return list_dir(request, workdir)
+    if op == "search":
+        return search(request, workdir)
     if op == "apply":
         return apply(request, workdir, root, policy)
     raise GuardError("Unknown operation")

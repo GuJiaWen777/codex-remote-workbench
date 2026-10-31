@@ -10,9 +10,13 @@
 | --- | --- |
 | `remote_doctor` | 只读检查工作目录、Python 与 Codex 可执行文件 |
 | `remote_inspect` | 读取 UTF-8 文件并返回 SHA-256；不存在的文件返回 `null` |
+| `remote_list` | 列出允许工作目录内的单层目录，返回类型与截断标记 |
+| `remote_search` | 在允许工作目录内递归搜索 UTF-8 普通文本，返回路径、行号及截断标记 |
 | `remote_apply_patch` | 核对哈希，在暂存副本应用标准 Codex 补丁，预览或备份后写回 |
 
 支持 Add / Update / Delete，最多 32 个文件。暂不支持移动文件、二进制文件、符号链接、硬链接、远端 Windows、任意命令执行或后台任务管理。
+
+目录和搜索默认跳过隐藏项、符号链接、依赖目录和常见密钥文件；搜索按字面文本匹配，不支持正则表达式，最多扫描 10000 个目录项、16 MiB 文件，单文件最多 2 MiB，最多返回 200 条匹配。目录最多返回 500 项。结果可能截断或跳过无法读取的文件，请检查 `truncated` 和 `skippedFiles`。这些过滤不是敏感信息检测器；搜索输出仍可能包含敏感文本。扫描期间的并发路径替换不受操作系统沙箱保护。
 
 这是现有 SSH 工作流的增强层。需要通用命令和传输时，可以并行使用原版 SSH MCP，例如 `@aiondadotcom/mcp-ssh`；本项目不修改或复制其实现，也不依赖该包。
 
@@ -78,6 +82,8 @@ tool_timeout_sec = 60
 Codex 的 STDIO 配置方式参见 [官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
 
 ## 推荐使用流程
+
+仓库提供可选的通用 [remote-workbench skill](skills/remote-workbench/SKILL.md)。可将该目录复制到个人 Codex skills 目录；主机配置和凭据仍放在本机私人配置中。
 
 1. 在允许工作目录中调用 `remote_inspect`，读取所有将修改的文件。
 2. 构造补丁，`expectedHashes` 必须完整列出每个目标：现有文件使用检查结果，新建文件使用 `null`。

@@ -63,6 +63,30 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(worker.GuardError):
             worker.inspect({"paths": ["test.txt"]}, self.root)
 
+    def test_list_search_and_limits(self):
+        (self.root / 'sub').mkdir()
+        (self.root / 'sub' / 'source.py').write_text('hello needle\n', encoding='utf-8')
+        (self.root / '.env').write_text('needle secret', encoding='utf-8')
+        (self.root / 'private.key').write_text('needle secret', encoding='utf-8')
+        listing = worker.list_dir({'limit': 1}, self.root)
+        self.assertEqual(len(listing['entries']), 1)
+        self.assertTrue(listing['truncated'])
+        result = worker.search({'query': 'needle'}, self.root)
+        self.assertEqual([m['path'] for m in result['matches']], ['sub/source.py'])
+        self.assertEqual(result['matches'][0]['line'], 1)
+        self.assertFalse(result['truncated'])
+        self.assertTrue(worker.search({'query': 'needle', 'limit': 1}, self.root)['truncated'])
+        for path in ['../outside', '.remote-workbench', '.hidden']:
+            with self.subTest(path=path), self.assertRaises(worker.GuardError):
+                worker.list_dir({'path': path}, self.root)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX symlink test')
+    def test_search_skips_symlink(self):
+        (self.root / 'link').symlink_to(self.root.parent, target_is_directory=True)
+        self.assertEqual(worker.search({'query': 'old'}, self.root)['matches'][0]['path'], 'test.txt')
+        with self.assertRaises(worker.GuardError):
+            worker.list_dir({'path': 'link'}, self.root)
+
     def test_hash_conflict_prevents_parser_call(self):
         request = self.request(False)
         request["expectedHashes"]["test.txt"] = "0" * 64
